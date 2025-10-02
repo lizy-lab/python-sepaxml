@@ -18,7 +18,13 @@ Limitations
 Supported standards:
 
 * SEPA PAIN.001.001.03
+* SEPA PAIN.001.001.09
+* SEPA PAIN.001.001.10
+* SEPA PAIN.001.001.11
 * SEPA PAIN.008.001.02
+* SEPA PAIN.008.001.08
+* SEPA PAIN.008.001.09
+* SEPA PAIN.008.001.10
 
 Usage
 -----
@@ -191,6 +197,11 @@ To automatically sort your Imports as required by CI::
     isort -rc .
 
 
+Security
+--------
+
+If you discover a security issue, please contact us at security@pretix.eu and see our `Responsible Disclosure Policy`_ further information.
+
 Credits and License
 -------------------
 
@@ -208,3 +219,4 @@ freely.
 
 .. _PySepaDD: https://github.com/congressus/PySepaDD
 .. _allowed to be reproduced: https://www.iso20022.org/terms-use
+.. _Responsible Disclosure Policy: https://docs.pretix.eu/trust/security/disclosure/
