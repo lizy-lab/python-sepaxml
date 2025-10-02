@@ -111,12 +111,12 @@ def decimal_str_to_int(decimal_string):
     return int(int_string)
 
 
-def validate_structured_reference(reference, format_type='BBA'):
+def validate_structured_reference(reference, format_type='ISO'):
     """
     Validate a structured communication reference.
 
     @param reference: The structured reference string
-    @param format_type: The format type ('BBA' for Belgian, 'ISO' for international, or None to skip validation)
+    @param format_type: The format type ('BBA' for Belgian, 'ISO' for ISO 11649 RF reference, or None to skip validation)
     @return: True if valid, raises Exception if invalid
     """
     if format_type == 'BBA':
@@ -144,10 +144,50 @@ def validate_structured_reference(reference, format_type='BBA'):
                 f"STRUCTURED_REFERENCE_INVALID_CHECKSUM: Check digit should be {expected_check:02d}, got {check_digit:02d}"
             )
     elif format_type == 'ISO':
-        # ISO format: alphanumeric, max 35 characters
-        if not re.match(r'^[A-Za-z0-9/\-?:().,\'+\s]{1,35}$', reference):
+        # ISO 11649 format: RF + 2 check digits + up to 21 alphanumeric characters (max 25 total)
+        # Format: RFnn + reference (where nn is the check digit)
+        clean_ref = reference.replace(' ', '').upper()
+
+        # Must start with RF
+        if not clean_ref.startswith('RF'):
             raise Exception(
-                "STRUCTURED_REFERENCE_INVALID: ISO format allows alphanumeric characters with max 35 characters"
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 format must start with 'RF', got '{reference}'"
+            )
+
+        # Must be between 4 and 25 characters (RF + 2 check digits + at least 0 and max 21 chars)
+        if len(clean_ref) < 4 or len(clean_ref) > 25:
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 format must be 4-25 characters, got {len(clean_ref)} characters"
+            )
+
+        # Check that positions 3-4 are digits (check digits)
+        if not clean_ref[2:4].isdigit():
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 check digits (positions 3-4) must be numeric, got '{clean_ref[2:4]}'"
+            )
+
+        # Check that the reference part contains only alphanumeric characters
+        ref_part = clean_ref[4:]
+        if ref_part and not re.match(r'^[A-Z0-9]+$', ref_part):
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 reference must contain only alphanumeric characters, got '{ref_part}'"
+            )
+
+        # Validate modulo 97 check digit (same algorithm as IBAN)
+        # Move RF and check digits to end, convert letters to numbers, calculate mod 97
+        rearranged = clean_ref[4:] + clean_ref[:4]
+        # Convert letters to numbers (A=10, B=11, ..., Z=35)
+        numeric_string = ''
+        for char in rearranged:
+            if char.isdigit():
+                numeric_string += char
+            else:
+                numeric_string += str(ord(char) - ord('A') + 10)
+
+        checksum = int(numeric_string) % 97
+        if checksum != 1:
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID_CHECKSUM: ISO 11649 checksum validation failed for '{reference}'"
             )
     # If format_type is None or other value, skip validation
 

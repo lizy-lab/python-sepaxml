@@ -79,7 +79,7 @@ class SepaDD(SepaPaymentInitn):
                 validation += "DESCRIPTION_MISSING "
         else:
             # Validate structured reference format if provided
-            ref_format = payment.get('structured_reference_type', 'BBA')
+            ref_format = payment.get('structured_reference_type', 'ISO')
             try:
                 validate_structured_reference(payment['structured_reference'], ref_format)
             except Exception as e:
