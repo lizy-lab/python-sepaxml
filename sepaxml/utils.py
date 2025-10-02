@@ -111,6 +111,89 @@ def decimal_str_to_int(decimal_string):
     return int(int_string)
 
 
+def validate_structured_reference(reference, format_type='ISO'):
+    """
+    Validate a structured communication reference.
+
+    @param reference: The structured reference string
+    @param format_type: The format type ('BBA' for Belgian, 'ISO' for ISO 11649 RF reference, or None to skip validation)
+    @return: True if valid, raises Exception if invalid
+    """
+    if format_type == 'BBA':
+        # BBA format: 12 digits in format XXX/XXXX/XXXCC where CC is check digit (modulo 97)
+        # Remove any formatting characters (/, +, spaces)
+        clean_ref = re.sub(r'[/+\s]', '', reference)
+
+        # Must be exactly 12 digits
+        if not re.match(r'^\d{12}$', clean_ref):
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: BBA format requires exactly 12 digits, got '{reference}'. "
+                f"Format should be XXX/XXXX/XXXCC or 12 consecutive digits."
+            )
+
+        # Validate modulo 97 check digit
+        # For BBA format, the check digit is calculated as: 97 - (base_number % 97)
+        # If result is 0, use 97
+        base_number = int(clean_ref[:10])
+        check_digit = int(clean_ref[10:12])
+        remainder = base_number % 97
+        expected_check = 97 - remainder if remainder != 0 else 97
+
+        if check_digit != expected_check:
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID_CHECKSUM: Check digit should be {expected_check:02d}, got {check_digit:02d}"
+            )
+    elif format_type == 'ISO':
+        # ISO 11649 format: RF + 2 check digits + up to 21 alphanumeric characters (max 25 total)
+        # Format: RFnn + reference (where nn is the check digit)
+        clean_ref = reference.replace(' ', '').upper()
+
+        # Must start with RF
+        if not clean_ref.startswith('RF'):
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 format must start with 'RF', got '{reference}'"
+            )
+
+        # Must be between 4 and 25 characters (RF + 2 check digits + at least 0 and max 21 chars)
+        if len(clean_ref) < 4 or len(clean_ref) > 25:
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 format must be 4-25 characters, got {len(clean_ref)} characters"
+            )
+
+        # Check that positions 3-4 are digits (check digits)
+        if not clean_ref[2:4].isdigit():
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 check digits (positions 3-4) must be numeric, got '{clean_ref[2:4]}'"
+            )
+
+        # Check that the reference part contains only alphanumeric characters
+        ref_part = clean_ref[4:]
+        if ref_part and not re.match(r'^[A-Z0-9]+$', ref_part):
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: ISO 11649 reference must contain only alphanumeric characters, got '{ref_part}'"
+            )
+
+        # Validate modulo 97 check digit (same algorithm as IBAN)
+        # Move RF and check digits to end, convert letters to numbers, calculate mod 97
+        rearranged = clean_ref[4:] + clean_ref[:4]
+        # Convert letters to numbers (A=10, B=11, ..., Z=35)
+        numeric_string = ''
+        for char in rearranged:
+            if char.isdigit():
+                numeric_string += char
+            else:
+                numeric_string += str(ord(char) - ord('A') + 10)
+
+        checksum = int(numeric_string) % 97
+        if checksum != 1:
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID_CHECKSUM: ISO 11649 checksum validation failed for '{reference}'"
+            )
+    # If format_type is None or other value, skip validation
+
+    return True
+
+
 ADDRESS_MAPPING = (
     ("address_type", "AdrTp"),
     ("department", "Dept"),
