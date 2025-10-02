@@ -158,6 +158,62 @@ def test_instant_payment_batch():
     assert "<NbOfTxs>2</NbOfTxs>" in xmlstr
 
 
+def test_mixed_instant_and_normal_batch():
+    """Test that instant and non-instant payments create separate batches"""
+    strf_batch = SepaTransfer(
+        {
+            "name": "TestCreditor",
+            "IBAN": "NL50BANK1234567890",
+            "BIC": "BANKNL2A",
+            "batch": True,
+            "currency": "EUR",
+        },
+        schema="pain.001.001.03",
+    )
+
+    payment_instant = {
+        "endtoend_id": "instant001",
+        "name": "Test von Testenstein",
+        "IBAN": "NL50BANK1234567890",
+        "BIC": "BANKNL2A",
+        "amount": 1012,
+        "execution_date": datetime.date.today(),
+        "description": "Instant payment",
+        "instant": True,
+    }
+    payment_normal = {
+        "endtoend_id": "normal001",
+        "name": "Test von Testenstein",
+        "IBAN": "NL50BANK1234567890",
+        "BIC": "BANKNL2A",
+        "amount": 2024,
+        "execution_date": datetime.date.today(),
+        "description": "Normal payment",
+        "instant": False,
+    }
+
+    strf_batch.add_payment(payment_instant)
+    strf_batch.add_payment(payment_normal)
+    xmlout = strf_batch.export()
+    xmlpretty = validate_xml(xmlout, "pain.001.001.03")
+    xmlstr = xmlpretty.decode()
+    print(xmlstr)
+
+    # Should have 2 separate PmtInf blocks (one for instant, one for normal)
+    assert xmlstr.count("<PmtInf>") == 2
+    assert xmlstr.count("</PmtInf>") == 2
+
+    # One should have LclInstrm with INST, the other should not
+    assert xmlstr.count("<LclInstrm>") == 1
+    assert xmlstr.count("<Cd>INST</Cd>") == 1
+
+    # Each batch should have 1 transaction
+    assert xmlstr.count("<NbOfTxs>1</NbOfTxs>") == 2
+
+    # Verify total in header is sum of both
+    assert "<CtrlSum>30.36</CtrlSum>" in xmlstr
+
+
 def test_domestic_instant_payment():
     strf_domestic = SepaTransfer(
         {
