@@ -111,6 +111,49 @@ def decimal_str_to_int(decimal_string):
     return int(int_string)
 
 
+def validate_structured_reference(reference, format_type='BBA'):
+    """
+    Validate a structured communication reference.
+
+    @param reference: The structured reference string
+    @param format_type: The format type ('BBA' for Belgian, 'ISO' for international, or None to skip validation)
+    @return: True if valid, raises Exception if invalid
+    """
+    if format_type == 'BBA':
+        # BBA format: 12 digits in format XXX/XXXX/XXXCC where CC is check digit (modulo 97)
+        # Remove any formatting characters (/, +, spaces)
+        clean_ref = re.sub(r'[/+\s]', '', reference)
+
+        # Must be exactly 12 digits
+        if not re.match(r'^\d{12}$', clean_ref):
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID: BBA format requires exactly 12 digits, got '{reference}'. "
+                f"Format should be XXX/XXXX/XXXCC or 12 consecutive digits."
+            )
+
+        # Validate modulo 97 check digit
+        # For BBA format, the check digit is calculated as: 97 - (base_number % 97)
+        # If result is 0, use 97
+        base_number = int(clean_ref[:10])
+        check_digit = int(clean_ref[10:12])
+        remainder = base_number % 97
+        expected_check = 97 - remainder if remainder != 0 else 97
+
+        if check_digit != expected_check:
+            raise Exception(
+                f"STRUCTURED_REFERENCE_INVALID_CHECKSUM: Check digit should be {expected_check:02d}, got {check_digit:02d}"
+            )
+    elif format_type == 'ISO':
+        # ISO format: alphanumeric, max 35 characters
+        if not re.match(r'^[A-Za-z0-9/\-?:().,\'+\s]{1,35}$', reference):
+            raise Exception(
+                "STRUCTURED_REFERENCE_INVALID: ISO format allows alphanumeric characters with max 35 characters"
+            )
+    # If format_type is None or other value, skip validation
+
+    return True
+
+
 ADDRESS_MAPPING = (
     ("address_type", "AdrTp"),
     ("department", "Dept"),
