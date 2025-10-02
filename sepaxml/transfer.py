@@ -108,6 +108,8 @@ class SepaTransfer(SepaPaymentInitn):
             )
             if not self._config.get('domestic', False):
                 PmtInf_nodes['Cd_SvcLvl_Node'].text = "SEPA"
+            if payment.get('instant', False):
+                PmtInf_nodes['Cd_LclInstrm_Node'].text = "INST"
             if 'execution_date' in payment:
                 if self.schema == "pain.001.001.03":
                     PmtInf_nodes['ReqdExctnDtNode'].text = payment['execution_date']
@@ -213,6 +215,8 @@ class SepaTransfer(SepaPaymentInitn):
         if not self._config.get('domestic', False):
             ED['SvcLvlNode'] = ET.Element("SvcLvl")
             ED['Cd_SvcLvl_Node'] = ET.Element("Cd")
+        ED['LclInstrmNode'] = ET.Element("LclInstrm")
+        ED['Cd_LclInstrm_Node'] = ET.Element("Cd")
         ED['ReqdExctnDtNode'] = ET.Element("ReqdExctnDt")
         ED['ReqdExctnDt_Dt_Node'] = ET.Element("Dt")
 
@@ -271,9 +275,16 @@ class SepaTransfer(SepaPaymentInitn):
         PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['NbOfTxsNode'])
         PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['CtrlSumNode'])
 
+        pmttypinf_has_content = False
         if not self._config.get('domestic', False):
             PmtInf_nodes['SvcLvlNode'].append(PmtInf_nodes['Cd_SvcLvl_Node'])
             PmtInf_nodes['PmtTpInfNode'].append(PmtInf_nodes['SvcLvlNode'])
+            pmttypinf_has_content = True
+        if PmtInf_nodes['Cd_LclInstrm_Node'].text == "INST":
+            PmtInf_nodes['LclInstrmNode'].append(PmtInf_nodes['Cd_LclInstrm_Node'])
+            PmtInf_nodes['PmtTpInfNode'].append(PmtInf_nodes['LclInstrmNode'])
+            pmttypinf_has_content = True
+        if pmttypinf_has_content:
             PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['PmtTpInfNode'])
         if 'ReqdExctnDtNode' in PmtInf_nodes:
             PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['ReqdExctnDtNode'])
@@ -360,7 +371,7 @@ class SepaTransfer(SepaPaymentInitn):
         not existant. This will also add the payment amount to the respective
         batch total.
         """
-        batch_key = payment.get('execution_date', None)
+        batch_key = (payment.get('execution_date', None), payment.get('instant', False))
         if batch_key in self._batches.keys():
             self._batches[batch_key].append(TX['CdtTrfTxInfNode'])
         else:
@@ -381,18 +392,21 @@ class SepaTransfer(SepaPaymentInitn):
         the main XML.
         """
         for batch_meta, batch_nodes in self._batches.items():
+            execution_date, instant = batch_meta
             PmtInf_nodes = self._create_PmtInf_node()
             PmtInf_nodes['PmtInfIdNode'].text = make_id(self._config['name'])
             PmtInf_nodes['PmtMtdNode'].text = "TRF"
             PmtInf_nodes['BtchBookgNode'].text = "true"
             if not self._config.get('domestic', False):
                 PmtInf_nodes['Cd_SvcLvl_Node'].text = "SEPA"
+            if instant:
+                PmtInf_nodes['Cd_LclInstrm_Node'].text = "INST"
 
-            if batch_meta:
+            if execution_date:
                 if self.schema == "pain.001.001.03":
-                    PmtInf_nodes['ReqdExctnDtNode'].text = batch_meta
+                    PmtInf_nodes['ReqdExctnDtNode'].text = execution_date
                 else:
-                    PmtInf_nodes['ReqdExctnDt_Dt_Node'].text = batch_meta
+                    PmtInf_nodes['ReqdExctnDt_Dt_Node'].text = execution_date
             else:
                 del PmtInf_nodes['ReqdExctnDtNode']
             PmtInf_nodes['Nm_Dbtr_Node'].text = self._config['name']
@@ -422,9 +436,16 @@ class SepaTransfer(SepaPaymentInitn):
             PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['NbOfTxsNode'])
             PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['CtrlSumNode'])
 
+            pmttypinf_has_content = False
             if not self._config.get('domestic', False):
                 PmtInf_nodes['SvcLvlNode'].append(PmtInf_nodes['Cd_SvcLvl_Node'])
                 PmtInf_nodes['PmtTpInfNode'].append(PmtInf_nodes['SvcLvlNode'])
+                pmttypinf_has_content = True
+            if PmtInf_nodes['Cd_LclInstrm_Node'].text == "INST":
+                PmtInf_nodes['LclInstrmNode'].append(PmtInf_nodes['Cd_LclInstrm_Node'])
+                PmtInf_nodes['PmtTpInfNode'].append(PmtInf_nodes['LclInstrmNode'])
+                pmttypinf_has_content = True
+            if pmttypinf_has_content:
                 PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['PmtTpInfNode'])
             if 'ReqdExctnDtNode' in PmtInf_nodes:
                 PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['ReqdExctnDtNode'])
