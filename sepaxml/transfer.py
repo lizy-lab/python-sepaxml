@@ -20,10 +20,11 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 
 import datetime
+import re
 import xml.etree.ElementTree as ET
 
 from .shared import SepaPaymentInitn
-from .utils import ADDRESS_MAPPING, int_to_decimal_str, make_id
+from .utils import ADDRESS_MAPPING, int_to_decimal_str, make_id, validate_structured_reference
 
 
 class SepaTransfer(SepaPaymentInitn):
@@ -75,6 +76,13 @@ class SepaTransfer(SepaPaymentInitn):
         if "structured_reference" not in payment:
             if "description" not in payment:
                 validation += "DESCRIPTION_MISSING "
+        else:
+            # Validate structured reference format if provided
+            ref_format = payment.get('structured_reference_type', 'BBA')
+            try:
+                validate_structured_reference(payment['structured_reference'], ref_format)
+            except Exception as e:
+                validation += str(e) + " "
 
         for config_item in required:
             if config_item not in payment:
@@ -188,14 +196,23 @@ class SepaTransfer(SepaPaymentInitn):
             cd_or_prtry_node = ET.Element('CdOrPrtry')
             cd_node = ET.Element('Cd')
             cd_node.text = 'SCOR'
-            issr_node = ET.Element('Issr')
-            issr_node.text = 'BBA'
+
+            # Get the issuer from payment or default to 'BBA' for Belgian banks
+            issuer = payment.get('structured_reference_issuer', 'BBA')
+            if issuer:  # Only add Issr node if issuer is specified
+                issr_node = ET.Element('Issr')
+                issr_node.text = issuer
+                tp_node.append(cd_or_prtry_node)
+                tp_node.append(issr_node)
+            else:
+                tp_node.append(cd_or_prtry_node)
+
+            # Clean structured reference (remove formatting characters)
+            clean_ref = re.sub(r'[/+\s]', '', payment['structured_reference'])
             ref_node = ET.Element('Ref')
-            ref_node.text = payment["structured_reference"]
+            ref_node.text = clean_ref
 
             cd_or_prtry_node.append(cd_node)
-            tp_node.append(cd_or_prtry_node)
-            tp_node.append(issr_node)
             cdtr_ref_inf_node.append(tp_node)
             cdtr_ref_inf_node.append(ref_node)
             strd_node.append(cdtr_ref_inf_node)
@@ -298,7 +315,8 @@ class SepaTransfer(SepaPaymentInitn):
         ED['Id_CdtrAcct_Node'] = ET.Element("Id")
         ED['IBAN_CdtrAcct_Node'] = ET.Element("IBAN")
         ED['RmtInfNode'] = ET.Element("RmtInf")
-        ED['UstrdNode'] = ET.Element("Ustrd")
+        # We'll create UstrdNode or StrdNode elements on demand in add_payment
+        # instead of creating them here
         return ED
 
     def _add_non_batch(self, TX_nodes, PmtInf_nodes):
@@ -394,7 +412,6 @@ class SepaTransfer(SepaPaymentInitn):
         TX_nodes['CdtrAcctNode'].append(TX_nodes['Id_CdtrAcct_Node'])
         TX_nodes['CdtTrfTxInfNode'].append(TX_nodes['CdtrAcctNode'])
 
-        TX_nodes['RmtInfNode'].append(TX_nodes['UstrdNode'])
         TX_nodes['CdtTrfTxInfNode'].append(TX_nodes['RmtInfNode'])
 
         self._add_to_batch_list(TX_nodes, payment)
@@ -459,28 +476,9 @@ class SepaTransfer(SepaPaymentInitn):
             if "BIC" in self._config:
                 PmtInf_nodes["BIC_DbtrAgt_Node"].text = self._config["BIC"]
 
-            if not self._config.get('domestic', False):
-                PmtInf_nodes['SvcLvlNode'].append(PmtInf_nodes['Cd_SvcLvl_Node'])
-                PmtInf_nodes['PmtTpInfNode'].append(PmtInf_nodes['SvcLvlNode'])
-                PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['PmtTpInfNode'])
-            if 'ReqdExctnDtNode' in PmtInf_nodes:
-                PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['ReqdExctnDtNode'])
-                if self.schema != "pain.001.001.03":
-                    PmtInf_nodes['ReqdExctnDtNode'].append(PmtInf_nodes['ReqdExctnDt_Dt_Node'])
-
-            PmtInf_nodes['DbtrNode'].append(PmtInf_nodes['Nm_Dbtr_Node'])
-            if len(PmtInf_nodes['PstlAdr_Dbtr_Node']) > 0:
-                PmtInf_nodes['DbtrNode'].append(PmtInf_nodes['PstlAdr_Dbtr_Node'])
-            PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['DbtrNode'])
-
-            PmtInf_nodes['Id_DbtrAcct_Node'].append(PmtInf_nodes['IBAN_DbtrAcct_Node'])
-            PmtInf_nodes['DbtrAcctNode'].append(PmtInf_nodes['Id_DbtrAcct_Node'])
-            PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['DbtrAcctNode'])
-
-            if 'BIC' in self._config:
-                PmtInf_nodes['FinInstnId_DbtrAgt_Node'].append(PmtInf_nodes['BIC_DbtrAgt_Node'])
-            PmtInf_nodes['DbtrAgtNode'].append(PmtInf_nodes['FinInstnId_DbtrAgt_Node'])
-            PmtInf_nodes['PmtInfNode'].append(PmtInf_nodes['DbtrAgtNode'])
+            PmtInf_nodes["ChrgBrNode"].text = "SLEV"
+            PmtInf_nodes["NbOfTxsNode"].text = str(len(batch_nodes))
+            PmtInf_nodes["CtrlSumNode"].text = int_to_decimal_str(self._batch_totals[batch_meta])
 
             PmtInf_nodes["PmtInfNode"].append(PmtInf_nodes["PmtInfIdNode"])
             PmtInf_nodes["PmtInfNode"].append(PmtInf_nodes["PmtMtdNode"])
@@ -493,6 +491,8 @@ class SepaTransfer(SepaPaymentInitn):
                 PmtInf_nodes["PmtTpInfNode"].append(PmtInf_nodes["SvcLvlNode"])
                 PmtInf_nodes["PmtInfNode"].append(PmtInf_nodes["PmtTpInfNode"])
             if "ReqdExctnDtNode" in PmtInf_nodes:
+                if self.schema != "pain.001.001.03":
+                    PmtInf_nodes['ReqdExctnDtNode'].append(PmtInf_nodes['ReqdExctnDt_Dt_Node'])
                 PmtInf_nodes["PmtInfNode"].append(PmtInf_nodes["ReqdExctnDtNode"])
 
             PmtInf_nodes["DbtrNode"].append(PmtInf_nodes["Nm_Dbtr_Node"])

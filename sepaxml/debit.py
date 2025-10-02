@@ -20,10 +20,11 @@ WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
 import datetime
+import re
 import xml.etree.ElementTree as ET
 
 from .shared import SepaPaymentInitn
-from .utils import ADDRESS_MAPPING, int_to_decimal_str, make_id
+from .utils import ADDRESS_MAPPING, int_to_decimal_str, make_id, validate_structured_reference
 
 
 class SepaDD(SepaPaymentInitn):
@@ -66,16 +67,23 @@ class SepaDD(SepaPaymentInitn):
         encountered.
         """
         validation = ""
-        
+
         # Don't allow both types of references
         if 'description' in payment and 'structured_reference' in payment:
             validation += "CANNOT_HAVE_BOTH_DESCRIPTION_AND_STRUCTURED_REFERENCE "
-        
+
         # For backward compatibility: if structured_reference is not provided, description is required
         # If structured_reference is provided, description becomes optional
         if 'structured_reference' not in payment:
             if 'description' not in payment:
                 validation += "DESCRIPTION_MISSING "
+        else:
+            # Validate structured reference format if provided
+            ref_format = payment.get('structured_reference_type', 'BBA')
+            try:
+                validate_structured_reference(payment['structured_reference'], ref_format)
+            except Exception as e:
+                validation += str(e) + " "
 
         if not isinstance(payment['amount'], int):
             validation += "AMOUNT_NOT_INTEGER "
@@ -179,14 +187,23 @@ class SepaDD(SepaPaymentInitn):
             cd_or_prtry_node = ET.Element('CdOrPrtry')
             cd_node = ET.Element('Cd')
             cd_node.text = 'SCOR'
-            issr_node = ET.Element('Issr')
-            issr_node.text = 'BBA'
+
+            # Get the issuer from payment or default to 'BBA' for Belgian banks
+            issuer = payment.get('structured_reference_issuer', 'BBA')
+            if issuer:  # Only add Issr node if issuer is specified
+                issr_node = ET.Element('Issr')
+                issr_node.text = issuer
+                tp_node.append(cd_or_prtry_node)
+                tp_node.append(issr_node)
+            else:
+                tp_node.append(cd_or_prtry_node)
+
+            # Clean structured reference (remove formatting characters)
+            clean_ref = re.sub(r'[/+\s]', '', payment['structured_reference'])
             ref_node = ET.Element('Ref')
-            ref_node.text = payment['structured_reference']
-            
+            ref_node.text = clean_ref
+
             cd_or_prtry_node.append(cd_node)
-            tp_node.append(cd_or_prtry_node)
-            tp_node.append(issr_node)
             cdtr_ref_inf_node.append(tp_node)
             cdtr_ref_inf_node.append(ref_node)
             strd_node.append(cdtr_ref_inf_node)
