@@ -22,13 +22,15 @@ def strf():
 
 
 def test_structured_reference(strf):
+    # Using a valid BBA structured reference: 000/0000/00196 (base 0000000001, check digit 96)
+    # Check digit = 97 - (1 % 97) = 96
     payment = {
         "name": "Test von Testenstein",
         "IBAN": "NL50BANK1234567890",
         "BIC": "BANKNL2A",
         "amount": 1012,
         "execution_date": datetime.date.today(),
-        "structured_reference": "617094556122022",
+        "structured_reference": "000/0000/00196",
     }
 
     strf.add_payment(payment)
@@ -45,7 +47,8 @@ def test_structured_reference(strf):
 
     ref_nodes = xml.findall(".//doc:Ref", ns)
     assert len(ref_nodes) == 1
-    assert ref_nodes[0].text == "617094556122022"
+    # Should be cleaned (formatting removed)
+    assert ref_nodes[0].text == "000000000196"
 
     cd_nodes = xml.findall(".//doc:Cd", ns)
     assert len(cd_nodes) >= 1
@@ -107,10 +110,42 @@ def test_both_references(strf):
         "amount": 1012,
         "execution_date": datetime.date.today(),
         "description": "Test transaction",
-        "structured_reference": "617094556122022",
+        "structured_reference": "000/0001/00096",
     }
 
     with pytest.raises(Exception) as excinfo:
         strf.add_payment(payment)
 
     assert "CANNOT_HAVE_BOTH_DESCRIPTION_AND_STRUCTURED_REFERENCE" in str(excinfo.value)
+
+
+def test_invalid_structured_reference_format(strf):
+    payment = {
+        "name": "Test von Testenstein",
+        "IBAN": "NL50BANK1234567890",
+        "BIC": "BANKNL2A",
+        "amount": 1012,
+        "execution_date": datetime.date.today(),
+        "structured_reference": "617094556122022",  # Invalid: too many digits
+    }
+
+    with pytest.raises(Exception) as excinfo:
+        strf.add_payment(payment)
+
+    assert "STRUCTURED_REFERENCE_INVALID" in str(excinfo.value)
+
+
+def test_invalid_structured_reference_checksum(strf):
+    payment = {
+        "name": "Test von Testenstein",
+        "IBAN": "NL50BANK1234567890",
+        "BIC": "BANKNL2A",
+        "amount": 1012,
+        "execution_date": datetime.date.today(),
+        "structured_reference": "000/0001/00099",  # Invalid checksum (should be 96)
+    }
+
+    with pytest.raises(Exception) as excinfo:
+        strf.add_payment(payment)
+
+    assert "STRUCTURED_REFERENCE_INVALID_CHECKSUM" in str(excinfo.value)
