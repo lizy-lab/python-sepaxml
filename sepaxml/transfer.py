@@ -517,7 +517,7 @@ class SepaTransfer(SepaPaymentInitn):
                 PmtInf_nodes["PmtInfNode"].append(PmtInf_nodes["ReqdExctnDtNode"])
 
             PmtInf_nodes["DbtrNode"].append(PmtInf_nodes["Nm_Dbtr_Node"])
-            if PmtInf_nodes["PstlAdr_Dbtr_Node"]:
+            if len(PmtInf_nodes["PstlAdr_Dbtr_Node"]) > 0:
                 PmtInf_nodes["DbtrNode"].append(PmtInf_nodes["PstlAdr_Dbtr_Node"])
             PmtInf_nodes["PmtInfNode"].append(PmtInf_nodes["DbtrNode"])
 
