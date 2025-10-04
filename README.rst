@@ -173,65 +173,14 @@ The library supports two types of payment references: unstructured and structure
         "description": "Invoice 12345",  # Free text description
     }
 
-**Structured references** - Use the ``structured_reference`` field for standardized creditor references. The library supports validation using the ``structured_reference_type`` parameter:
+**Structured references** - Use the ``structured_reference`` field for standardized creditor references (like ISO 11649). Find an example hereunder:
 
 .. code:: python
 
-    # ISO 11649 format (default) - International creditor reference
     payment = {
         # ... other required fields ...
-        "structured_reference": "RF18539007547034",
-        "structured_reference_type": "ISO",  # Default - validates RF + checksum
+        "structured_reference": "RF18539007547034",  # ISO 11649 reference
     }
-
-    # Belgian BBA format - Belgian structured communication
-    payment = {
-        # ... other required fields ...
-        "structured_reference": "+++000/0000/00196+++",
-        "structured_reference_type": "BBA",  # Validates 12 digits + modulo 97
-    }
-
-    # No validation - any format accepted (use with caution)
-    payment = {
-        # ... other required fields ...
-        "structured_reference": "CUSTOM-REF-123",
-        "structured_reference_type": None,  # Skips validation
-    }
-
-The default is ``"ISO"`` which validates ISO 11649 format (RF prefix + 2 check digits + up to 21 alphanumeric characters, total length 4-25). The BBA format validates Belgian structured references with modulo 97 checksum. Set to ``None`` to skip validation entirely.
-
-
-Instant Payment (SEPA Instant Credit Transfer)
-"""""""""""""""""""""""""""""""""""""""""""""""
-
-For SEPA transfers, you can enable instant payment processing using the ``instant`` flag:
-
-.. code:: python
-
-    from sepaxml import SepaTransfer
-    import datetime
-
-    config = {
-        "name": "Test von Testenstein",
-        "IBAN": "NL50BANK1234567890",
-        "BIC": "BANKNL2A",
-        "batch": True,
-        "currency": "EUR",
-    }
-    sepa = SepaTransfer(config, clean=True)
-
-    payment = {
-        "name": "Test von Testenstein",
-        "IBAN": "NL50BANK1234567890",
-        "BIC": "BANKNL2A",
-        "amount": 5000,  # in cents
-        "execution_date": datetime.date.today(),
-        "description": "Instant payment",
-        "instant": True,  # Enable instant payment
-    }
-    sepa.add_payment(payment)
-
-When ``instant`` is set to ``True``, the payment is processed as a SEPA Instant Credit Transfer (SCT Inst), typically completed within 10 seconds. Note that instant payments may have amount limits and additional fees depending on your bank.
 
 
 Development
