@@ -19,6 +19,7 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY
 WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 """
+
 import datetime
 import hashlib
 import random
@@ -30,12 +31,15 @@ try:
     using_sysrandom = True
 except NotImplementedError:
     import warnings
-    warnings.warn('A secure pseudo-random number generator is not available '
-                  'on your system. Falling back to Mersenne Twister.')
+
+    warnings.warn(
+        "A secure pseudo-random number generator is not available "
+        "on your system. Falling back to Mersenne Twister."
+    )
     using_sysrandom = False
 
 
-def get_rand_string(length=12, allowed_chars='0123456789abcdef'):
+def get_rand_string(length=12, allowed_chars="0123456789abcdef"):
     """
     Returns a securely generated random string. Taken from the Django project
 
@@ -51,11 +55,10 @@ def get_rand_string(length=12, allowed_chars='0123456789abcdef'):
         # is better than absolute predictability.
         random.seed(
             hashlib.sha256(
-                ("%s%s" % (
-                    random.getstate(),
-                    time.time())).encode('utf-8')
-            ).digest())
-    return ''.join([random.choice(allowed_chars) for i in range(length)])
+                ("%s%s" % (random.getstate(), time.time())).encode("utf-8")
+            ).digest()
+        )
+    return "".join([random.choice(allowed_chars) for i in range(length)])
 
 
 def make_msg_id():
@@ -76,7 +79,7 @@ def make_id(name):
     @return string consisting of name (truncated at 22 chars), -,
     12 char rand hex string.
     """
-    name = re.sub(r'[^a-zA-Z0-9]', '', name)
+    name = re.sub(r"[^a-zA-Z0-9]", "", name)
     r = get_rand_string(12)
     if len(name) > 22:
         name = name[:22]
@@ -106,12 +109,12 @@ def decimal_str_to_int(decimal_string):
     @param string The amount in currency with full stop decimal separator
     @return integer The amount in cents
     """
-    int_string = decimal_string.replace('.', '')
-    int_string = int_string.lstrip('0')
+    int_string = decimal_string.replace(".", "")
+    int_string = int_string.lstrip("0")
     return int(int_string)
 
 
-def validate_structured_description(description, format_type='ISO'):
+def validate_structured_description(description, format_type="ISO"):
     """
     Validate a structured communication description.
 
@@ -120,13 +123,13 @@ def validate_structured_description(description, format_type='ISO'):
     @return: True if valid, raises ValueError if invalid
     """
     # Skip validation if format_type is None or not recognized
-    if format_type not in ('BBA', 'ISO'):
+    if format_type not in ("BBA", "ISO"):
         return True
 
-    if format_type == 'BBA':
+    if format_type == "BBA":
         return _validate_bba_description(description)
 
-    if format_type == 'ISO':
+    if format_type == "ISO":
         return _validate_iso11649_description(description)
 
 
@@ -140,13 +143,12 @@ def _validate_bba_description(description):
     @return: True if valid, raises ValueError if invalid
     """
     # Remove any formatting characters (/, +, spaces)
-    clean_ref = re.sub(r'[/+\s]', '', description)
+    clean_ref = re.sub(r"[/+\s]", "", description)
 
     # Must be exactly 12 digits
-    if not re.match(r'^\d{12}$', clean_ref):
+    if not re.match(r"^\d{12}$", clean_ref):
         raise ValueError(
             f"STRUCTURED_DESCRIPTION_INVALID: BBA format requires exactly 12 digits, got '{description}'. "
-            f"Format should be XXX/XXXX/XXXCC or 12 consecutive digits."
         )
 
     # Validate modulo 97 check digit
@@ -155,7 +157,7 @@ def _validate_bba_description(description):
     base_number = int(clean_ref[:10])
     check_digit = int(clean_ref[10:12])
     remainder = base_number % 97
-    expected_check = 97 - remainder if remainder != 0 else 97
+    expected_check = remainder if remainder != 0 else 97
 
     if check_digit != expected_check:
         raise ValueError(
@@ -175,10 +177,10 @@ def _validate_iso11649_description(description):
     @param description: The structured description string
     @return: True if valid, raises ValueError if invalid
     """
-    clean_ref = description.replace(' ', '').upper()
+    clean_ref = description.replace(" ", "").upper()
 
     # Must start with RF
-    if not clean_ref.startswith('RF'):
+    if not clean_ref.startswith("RF"):
         raise ValueError(
             f"STRUCTURED_DESCRIPTION_INVALID: ISO 11649 format must start with 'RF', got '{description}'"
         )
@@ -197,7 +199,7 @@ def _validate_iso11649_description(description):
 
     # Check that the description part contains only alphanumeric characters
     ref_part = clean_ref[4:]
-    if ref_part and not re.match(r'^[A-Z0-9]+$', ref_part):
+    if ref_part and not re.match(r"^[A-Z0-9]+$", ref_part):
         raise ValueError(
             f"STRUCTURED_DESCRIPTION_INVALID: ISO 11649 description must contain only alphanumeric characters, got '{ref_part}'"
         )
@@ -206,12 +208,12 @@ def _validate_iso11649_description(description):
     # Move RF and check digits to end, convert letters to numbers, calculate mod 97
     rearranged = clean_ref[4:] + clean_ref[:4]
     # Convert letters to numbers (A=10, B=11, ..., Z=35)
-    numeric_string = ''
+    numeric_string = ""
     for char in rearranged:
         if char.isdigit():
             numeric_string += char
         else:
-            numeric_string += str(ord(char) - ord('A') + 10)
+            numeric_string += str(ord(char) - ord("A") + 10)
 
     checksum = int(numeric_string) % 97
     if checksum != 1:

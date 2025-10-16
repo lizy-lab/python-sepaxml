@@ -30,7 +30,7 @@ def test_structured_description(strf):
         "BIC": "BANKNL2A",
         "amount": 1012,
         "execution_date": datetime.date.today(),
-        "structured_description": "000/0000/00196",
+        "structured_description": "300/0384/40701",
         "structured_description_type": "BBA",
     }
 
@@ -49,7 +49,7 @@ def test_structured_description(strf):
     ref_nodes = xml.findall(".//doc:Ref", ns)
     assert len(ref_nodes) == 1
     # Should be cleaned (formatting removed)
-    assert ref_nodes[0].text == "000000000196"
+    assert ref_nodes[0].text == "300038440701"
 
     cd_nodes = xml.findall(".//doc:Cd", ns)
     assert len(cd_nodes) >= 1
@@ -117,7 +117,9 @@ def test_both_descriptions(strf):
     with pytest.raises(Exception) as excinfo:
         strf.add_payment(payment)
 
-    assert "CANNOT_HAVE_BOTH_DESCRIPTION_AND_STRUCTURED_DESCRIPTION" in str(excinfo.value)
+    assert "CANNOT_HAVE_BOTH_DESCRIPTION_AND_STRUCTURED_DESCRIPTION" in str(
+        excinfo.value
+    )
 
 
 def test_invalid_structured_description_format(strf):
